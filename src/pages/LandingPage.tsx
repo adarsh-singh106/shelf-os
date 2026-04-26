@@ -43,8 +43,8 @@ function BookCard({ book }: { book: LandingBook }) {
     .toUpperCase()
 
   return (
-    <article className="group w-[150px] sm:w-[170px] flex-shrink-0">
-      <div className="relative h-[220px] sm:h-[250px] overflow-hidden rounded-xl border border-white/10 bg-slate-900">
+    <article className="group w-37.5 sm:w-42.5 shrink-0">
+      <div className="relative h-55 sm:h-62.5 overflow-hidden rounded-xl border border-white/10 bg-slate-900">
         {book.cover_url ? (
           <img
             src={book.cover_url}
@@ -53,7 +53,7 @@ function BookCard({ book }: { book: LandingBook }) {
             loading="lazy"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-orange-500/80 via-amber-500/80 to-emerald-500/80">
+          <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-orange-500/80 via-amber-500/80 to-emerald-500/80">
             <span className="font-display text-4xl italic text-white/95">{initials}</span>
           </div>
         )}
@@ -226,7 +226,7 @@ export default function LandingPage() {
               <h1 className="max-w-2xl font-display text-4xl italic leading-tight text-white sm:text-5xl lg:text-6xl">
                 Built for readers, librarians, and real campus workflows.
               </h1>
-              <p className="max-w-xl text-base leading-relaxed text-white/70 sm:text-lg">
+              <p className="max-w-xl text-base leading-relaxed sm:text-lg">
                 ShelfOS is connected to your live catalog and borrowing system. Browse available copies, discover trending
                 books, and manage borrowing without paperwork friction.
               </p>
@@ -267,7 +267,7 @@ export default function LandingPage() {
                   <p className="mt-1 text-2xl font-semibold text-amber-300">{stats?.availableCopies ?? '--'}</p>
                 </div>
               </div>
-              <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/70">
+              <div className="mt-5 rounded-xl border border-white/10 bg-white/3 p-4 text-sm text-white/70">
                 Data is pulled from your Supabase tables/views: <span className="text-white">book_details</span>, <span className="text-white">trending_books</span>, <span className="text-white">authors</span>, and <span className="text-white">users</span>.
               </div>
             </aside>
@@ -278,7 +278,7 @@ export default function LandingPage() {
               {featureCards.map((feature) => {
                 const Icon = feature.icon
                 return (
-                  <article key={feature.title} className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+                  <article key={feature.title} className="rounded-2xl border border-white/10 bg-white/3 p-6">
                     <span className="inline-flex rounded-lg bg-orange-500/15 p-2 text-orange-300">
                       <Icon size={18} />
                     </span>
@@ -292,7 +292,7 @@ export default function LandingPage() {
 
           <section id="discover" className="mx-auto max-w-7xl space-y-12 px-4 pb-16 sm:px-6 lg:px-10">
             {loading ? (
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center text-white/70">
+              <div className="rounded-2xl border border-white/10 bg-white/3 p-8 text-center text-white/70">
                 Loading catalog shelves...
               </div>
             ) : (
@@ -305,7 +305,7 @@ export default function LandingPage() {
           </section>
 
           <section id="borrow" className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-10">
-            <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-orange-500/12 to-emerald-500/8 p-6 sm:p-8">
+            <div className="rounded-2xl border border-white/10 bg-linear-to-br from-orange-500/12 to-emerald-500/8 p-6 sm:p-8">
               <h2 className="font-display text-3xl italic text-white sm:text-4xl">How borrowing works</h2>
               <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="rounded-xl border border-white/10 bg-black/20 p-4">
