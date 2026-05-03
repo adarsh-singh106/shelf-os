@@ -1,72 +1,128 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import type { TableRow, ViewRow } from '../types/db'
 
-interface Book {
-  id: number
-  title: string
-  isbn: string | null
-  format: 'novel' | 'manga' | 'magazine' | 'textbook' | 'digital'
-  language: string | null
-  published_date: string | null
-  description: string | null
-  cover_url: string | null
-  avg_rating: number | null
-  review_count: number
-  available_copies: number
-  total_copies: number
-  authors: Array<{ id: number; name: string }>
-  genres: Array<{ id: number; name: string }>
-}
+export type Book = ViewRow<'book_details'>
+type TrendingBook = ViewRow<'trending_books'>
+type GenreRow = Pick<TableRow<'genres'>, 'id' | 'name'>
 
 interface BooksFilters {
-  format?: string
+  format?: Book['format']
   genreId?: number
   limit?: number
 }
 
 export function useBooks(filters?: BooksFilters) {
-  return useQuery({
+  return useQuery<Book[]>({
     queryKey: ['books', filters],
     queryFn: async () => {
+      let genreName: string | null = null
+      if (filters?.genreId) {
+        const { data: genre, error: genreError } = await supabase
+          .from('genres')
+          .select('id, name')
+          .eq('id', filters.genreId)
+          .single()
+          .returns<GenreRow>()
+
+        if (genreError) throw genreError
+        genreName = genre.name
+      }
+
       let q = supabase
         .from('book_details')
         .select('*')
         .order('avg_rating', { ascending: false })
-        .limit(filters?.limit ?? 20)
+        .limit(genreName ? 100 : filters?.limit ?? 20)
       
       if (filters?.format) q = q.eq('format', filters.format)
       
-      const { data, error } = await q
+      const { data, error } = await q.returns<Book[]>()
       if (error) throw error
-      return (data ?? []) as Book[]
+
+      const rows = data ?? []
+      const filtered = genreName
+        ? rows.filter((book) => (book.genres ?? []).includes(genreName))
+        : rows
+
+      return filtered.slice(0, filters?.limit ?? 20)
     },
   })
 }
 
 export function useTrending() {
-  return useQuery({
+  return useQuery<Book[]>({
     queryKey: ['trending'],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data: trendingRows, error: trendingError } = await supabase
         .from('trending_books')
         .select('*')
         .limit(20)
-      return (data ?? []) as Book[]
+        .returns<TrendingBook[]>()
+
+      if (trendingError) throw trendingError
+
+      const trendMap = new Map<number, TrendingBook>(
+        (trendingRows ?? [])
+          .filter((row): row is TrendingBook & { id: number } => row.id !== null)
+          .map((row) => [row.id, row])
+      )
+      const trendIds = [...trendMap.keys()]
+
+      if (trendIds.length === 0) {
+        return []
+      }
+
+      const { data: detailRows, error: detailError } = await supabase
+        .from('book_details')
+        .select('*')
+        .in('id', trendIds)
+        .returns<Book[]>()
+
+      if (detailError) throw detailError
+
+      const details = detailRows ?? []
+      return details.sort((a, b) => {
+        const aBorrows = a.id ? trendMap.get(a.id)?.borrows_this_week ?? 0 : 0
+        const bBorrows = b.id ? trendMap.get(b.id)?.borrows_this_week ?? 0 : 0
+        return bBorrows - aBorrows
+      })
     },
   })
 }
 
 export function useSearch(query: string) {
-  return useQuery({
+  return useQuery<Book[]>({
     queryKey: ['search', query],
     enabled: query.trim().length > 2,
     queryFn: async () => {
-      const { data } = await supabase
+      const term = query.trim().toLowerCase()
+      
+      // Fetch data. We'll try to get a decent amount and filter client-side 
+      // to ensure it works even if searchable_text or other custom columns are missing.
+      const { data, error } = await supabase
         .from('book_details')
         .select('*')
-        .textSearch('search_vector', query, { type: 'websearch' })
-        .limit(30)
-      return (data ?? []) as Book[]
+        .limit(100)
+        .returns<Book[]>()
+      
+      if (error) throw error
+      
+      const rows = data ?? []
+      return rows
+        .filter((book) => {
+          const searchStr = [
+            book.title,
+            book.isbn,
+            book.format,
+            book.language,
+            ...(book.authors ?? []),
+            ...(book.genres ?? []),
+          ].join(' ').toLowerCase()
+          
+          return searchStr.includes(term)
+        })
+        .slice(0, 30)
     },
   })
 }

@@ -25,11 +25,18 @@
 
 @layer base {
   html {
-    @apply bg-void text-white;
+    @apply bg-void text-white font-ui;
   }
 
   body {
-    @apply bg-void;
+    @apply bg-void text-white font-ui;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font-family: var(--font-ui);
   }
 
   ::-webkit-scrollbar {

@@ -1,36 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import type { TableRow, ViewRow } from '../types/db'
 
-interface AuditLogEntry {
-  id: number
-  table_name: string
-  action: 'INSERT' | 'UPDATE' | 'DELETE' | 'NOTIFY'
-  row_id: number
-  changed_by: string
-  old_data: Record<string, unknown> | null
-  new_data: Record<string, unknown> | null
-  changed_at: string
-}
-
-interface PendingRequest {
-  id: number
-  user_id: string
-  book_id: number
-  username: string
-  book_title: string
-  requested_at: string
-}
-
-interface OverdueBook {
-  user_id: string
-  book_id: number
-  username: string
-  book_title: string
-  due_date: string
-}
+// Typed from database.types.ts
+export type AuditLogRow = TableRow<'audit_log'>
+export type PendingRequestRow = ViewRow<'pending_requests'>
+export type OverdueBorrowRow = ViewRow<'overdue_borrows'>
 
 export function useAuditLog() {
-  return useQuery({
+  return useQuery<AuditLogRow[]>({
     queryKey: ['auditLog'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -38,35 +16,38 @@ export function useAuditLog() {
         .select('*')
         .order('changed_at', { ascending: false })
         .limit(100)
+        .returns<AuditLogRow[]>()
       if (error) throw error
-      return (data ?? []) as AuditLogEntry[]
+      return (data ?? []) as AuditLogRow[]
     },
   })
 }
 
 export function usePendingRequests() {
-  return useQuery({
-    queryKey: ['pendingRequests'],
+  return useQuery<PendingRequestRow[]>({
+    queryKey: ['pending_requests'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('pending_requests')
         .select('*')
         .order('requested_at', { ascending: true })
+        .returns<PendingRequestRow[]>()
       if (error) throw error
-      return (data ?? []) as PendingRequest[]
+      return (data ?? []) as PendingRequestRow[]
     },
   })
 }
 
 export function useOverdueBooks() {
-  return useQuery({
+  return useQuery<OverdueBorrowRow[]>({
     queryKey: ['overdueBooks'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('overdue_borrows')
         .select('*')
+        .returns<OverdueBorrowRow[]>()
       if (error) throw error
-      return (data ?? []) as OverdueBook[]
+      return (data ?? []) as OverdueBorrowRow[]
     },
   })
 }
