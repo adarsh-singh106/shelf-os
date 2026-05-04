@@ -73,27 +73,20 @@ export default function CommandPalette({ isOpen, onClose, onBookSelect }: Comman
       const term = debouncedQuery.toLowerCase()
       setLoading(true)
       setSearchError(null)
+      
       const { data, error } = await supabase
         .from('book_details')
         .select('id, title, authors, genres, cover_url, isbn, format, available_copies, total_copies, avg_rating')
-        .limit(100)
+        .ilike('searchable_text', `%${term}%`)
+        .order('id', { ascending: false })
+        .limit(12)
         .returns<PaletteBook[]>()
 
       if (error) {
         setSearchError(error.message)
         setResults([])
       } else {
-        const filtered = (data ?? []).filter((book) => {
-          const searchStr = [
-            book.title,
-            book.isbn,
-            book.format,
-            ...(book.authors ?? []),
-            ...(book.genres ?? []),
-          ].join(' ').toLowerCase()
-          return searchStr.includes(term)
-        })
-        setResults(filtered.slice(0, 8))
+        setResults(data ?? [])
       }
 
       setSelectedIndex(0)

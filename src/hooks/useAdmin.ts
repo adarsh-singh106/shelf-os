@@ -51,3 +51,38 @@ export function useOverdueBooks() {
     },
   })
 }
+
+export function useLibraryStats() {
+  return useQuery({
+    queryKey: ['libraryStats'],
+    queryFn: async () => {
+      const [booksCount, usersCount, activeBorrows, overdueCount] = await Promise.all([
+        supabase.from('books').select('*', { count: 'exact', head: true }),
+        supabase.from('users').select('*', { count: 'exact', head: true }),
+        supabase.from('borrow_history').select('*', { count: 'exact', head: true }).eq('status', 'active'),
+        supabase.from('overdue_borrows').select('*', { count: 'exact', head: true })
+      ])
+
+      return {
+        totalBooks: booksCount.count ?? 0,
+        totalMembers: usersCount.count ?? 0,
+        activeBorrows: activeBorrows.count ?? 0,
+        overdueCount: overdueCount.count ?? 0,
+      }
+    }
+  })
+}
+
+export function useGenreStats() {
+  return useQuery({
+    queryKey: ['genreStats'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('genre_stats')
+        .select('*')
+        .order('book_count', { ascending: false })
+      if (error) throw error
+      return data || []
+    }
+  })
+}

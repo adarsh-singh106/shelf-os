@@ -143,8 +143,14 @@ export default function LandingPage() {
   }, [books])
   
   const surpriseBooks = useMemo(() => {
+    // Stable pseudo-random shuffle using book ID as seed to satisfy React 19 purity rules
     return [...(books as LandingBook[])]
-      .sort(() => Math.random() - 0.5)
+      .sort((a, b) => {
+        const seed = 42
+        const hashA = ((a.id ?? 0) ^ seed) * 0x5bd1e995
+        const hashB = ((b.id ?? 0) ^ seed) * 0x5bd1e995
+        return (hashA % 100) - (hashB % 100)
+      })
       .slice(0, 12)
   }, [books])
 

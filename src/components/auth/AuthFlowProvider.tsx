@@ -58,7 +58,11 @@ export default function AuthFlowProvider({ children }: AuthFlowProviderProps) {
     if (onboarded) {
       setIsOnboardingOpen(false)
       setOnboardingUserId(null)
-      navigate(targetRoute)
+      // Only force redirect if we are on the landing page.
+      // If we're already on an app route (/admin/*, /discover, etc), stay there.
+      if (window.location.pathname === '/') {
+        navigate(targetRoute)
+      }
       return
     }
 

@@ -10,6 +10,7 @@ interface BooksFilters {
   format?: Book['format']
   genreId?: number
   limit?: number
+  sortBy?: 'id' | 'rating'
 }
 
 export function useBooks(filters?: BooksFilters) {
@@ -29,10 +30,12 @@ export function useBooks(filters?: BooksFilters) {
         genreName = genre.name
       }
 
+      const sortCol = filters?.sortBy === 'rating' ? 'avg_rating' : 'id'
+      
       let q = supabase
         .from('book_details')
         .select('*')
-        .order('avg_rating', { ascending: false })
+        .order(sortCol, { ascending: false })
         .limit(genreName ? 100 : filters?.limit ?? 20)
       
       if (filters?.format) q = q.eq('format', filters.format)
@@ -98,31 +101,16 @@ export function useSearch(query: string) {
     queryFn: async () => {
       const term = query.trim().toLowerCase()
       
-      // Fetch data. We'll try to get a decent amount and filter client-side 
-      // to ensure it works even if searchable_text or other custom columns are missing.
       const { data, error } = await supabase
         .from('book_details')
         .select('*')
-        .limit(100)
+        .ilike('searchable_text', `%${term}%`)
+        .order('id', { ascending: false })
+        .limit(30)
         .returns<Book[]>()
       
       if (error) throw error
-      
-      const rows = data ?? []
-      return rows
-        .filter((book) => {
-          const searchStr = [
-            book.title,
-            book.isbn,
-            book.format,
-            book.language,
-            ...(book.authors ?? []),
-            ...(book.genres ?? []),
-          ].join(' ').toLowerCase()
-          
-          return searchStr.includes(term)
-        })
-        .slice(0, 30)
+      return data ?? []
     },
   })
 }

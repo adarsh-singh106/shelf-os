@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
-import { useCancelRequest } from '../hooks/useBorrow'
+import { useCancelRequest, useLeaveWaitlist } from '../hooks/useBorrow'
 import type { TableRow, ViewRow } from '../types/db'
 
 type Tab = 'active' | 'history' | 'waitlist'
@@ -105,6 +105,7 @@ export default function MyShelfPage() {
   const { user } = useAuth()
   const [tab, setTab] = useState<Tab>('active')
   const cancelRequest = useCancelRequest()
+  const leaveWaitlist = useLeaveWaitlist()
 
   const handleCancel = async (borrowId: number) => {
     if (!user?.id) return
@@ -112,6 +113,17 @@ export default function MyShelfPage() {
 
     try {
       await cancelRequest.mutateAsync({ borrowId, userId: user.id })
+    } catch (err) {
+      alert((err as Error).message)
+    }
+  }
+
+  const handleLeaveWaitlist = async (bookId: number) => {
+    if (!user?.id) return
+    if (!window.confirm('Leave the waitlist for this book?')) return
+
+    try {
+      await leaveWaitlist.mutateAsync({ bookId, userId: user.id })
     } catch (err) {
       alert((err as Error).message)
     }
@@ -234,13 +246,13 @@ export default function MyShelfPage() {
   }, [queryClient, user?.id])
 
   return (
-    <main className="min-h-screen bg-void px-8 py-7">
+    <main className="min-h-screen bg-void px-4 pb-24 pt-7 sm:px-8 sm:pb-8">
       <header className="mb-8">
-        <h1 className="font-display text-[32px] italic text-white">My Shelf</h1>
+        <h1 className="font-display text-[28px] italic text-white sm:text-[32px]">My Shelf</h1>
         <p className="text-sm text-muted">Your books, borrows and reading history</p>
       </header>
 
-      <div className="mb-6 flex flex-wrap gap-2">
+      <div className="mb-6 flex flex-wrap gap-1.5 sm:gap-2">
         {[
           { id: 'active' as const, label: `Active (${activeCount})` },
           { id: 'history' as const, label: 'History' },
@@ -250,7 +262,7 @@ export default function MyShelfPage() {
             key={item.id}
             type="button"
             onClick={() => setTab(item.id)}
-            className={`rounded-lg px-4 py-2 text-sm transition duration-150 ${
+            className={`rounded-lg px-3 py-2 text-xs transition duration-150 sm:px-4 sm:text-sm ${
               tab === item.id ? 'border-b-2 border-accent bg-accent/12 text-accent' : 'text-muted hover:bg-white/6'
             }`}
           >
@@ -272,18 +284,18 @@ export default function MyShelfPage() {
       ) : null}
 
       {!currentLoading && !currentError && tab === 'active' && activeCards.length === 0 ? (
-        <section className="grid place-items-center rounded-card border border-border bg-surface py-16 text-center">
-          <BookOpen size={48} className="text-ghost" />
+        <section className="grid place-items-center rounded-card border border-border bg-surface px-4 py-16 text-center">
+          <BookOpen size={48} className="text-ghost opacity-50" />
           <p className="mt-3 text-[15px] text-white/80">No active borrows</p>
           <p className="text-[13px] text-muted">Browse the library to request your first book</p>
-          <button type="button" onClick={() => navigate('/discover')} className="mt-3 text-sm text-accent transition-colors duration-150 hover:text-white">
+          <button type="button" onClick={() => navigate('/discover')} className="mt-4 text-sm font-bold text-accent transition-colors duration-150 hover:text-white">
             Go to Discover →
           </button>
         </section>
       ) : null}
 
       {!currentLoading && !currentError && tab === 'active' ? (
-        <div className="space-y-3">
+        <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-2">
           {activeCards.map(({ row, ratio, daysLeft }) => {
             const author = row.books?.authors?.[0]?.authors?.name ?? 'Unknown Author'
             const daysLabel = daysLeft === null ? '' : daysLeft >= 0 ? `${daysLeft} days left` : `${Math.abs(daysLeft)} days overdue`
@@ -291,68 +303,71 @@ export default function MyShelfPage() {
             const gradient = FALLBACK_GRADIENTS[(row.books?.title?.charCodeAt(0) || 0) % FALLBACK_GRADIENTS.length]
 
             return (
-              <article key={row.id} className="flex gap-4 rounded-card border border-border bg-surface px-6 py-5">
-                <div className="relative h-[90px] w-[60px] overflow-hidden rounded-md border border-border bg-white/8">
-                  <div className="absolute inset-0 grid place-items-center font-display text-lg italic text-white" style={{ background: gradient }}>
-                    {row.books?.title?.[0] ?? 'B'}
-                  </div>
-                  {row.books?.cover_url ? (
-                    <img
-                      src={row.books.cover_url}
-                      alt={row.books?.title ?? ''}
-                      className="relative z-10 h-full w-full object-cover"
-                      onError={(event) => {
-                        event.currentTarget.style.display = 'none'
-                      }}
-                    />
-                  ) : null}
-                </div>
-
-                <div className="flex-1">
-                  <h3 className="font-display text-base italic text-white">{row.books?.title ?? 'Unknown Book'}</h3>
-                  <p className="text-xs text-muted">{author}</p>
-
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] ${statusChip(row.status)}`}>
-                      {row.status === 'requested' ? 'Awaiting Confirmation' : row.status === 'active' ? 'Borrowed' : 'OVERDUE'}
-                    </span>
-                    {row.fine_amount && row.fine_amount > 0 ? (
-                      <span className="inline-flex rounded-full bg-danger/10 px-2 py-0.5 text-[11px] font-mono text-danger">
-                        Fine: ₹{row.fine_amount} ({row.fine_status})
-                      </span>
+              <article key={row.id} className="flex flex-col gap-4 rounded-card border border-border bg-surface px-5 py-4 sm:flex-row sm:px-6 sm:py-5">
+                <div className="flex gap-4 sm:gap-6">
+                  <div className="relative h-[100px] w-[70px] shrink-0 overflow-hidden rounded-md border border-border bg-white/8 shadow-xl">
+                    <div className="absolute inset-0 grid place-items-center font-display text-xl italic text-white" style={{ background: gradient }}>
+                      {row.books?.title?.[0] ?? 'B'}
+                    </div>
+                    {row.books?.cover_url ? (
+                      <img
+                        src={row.books.cover_url}
+                        alt={row.books?.title ?? ''}
+                        className="relative z-10 h-full w-full object-cover"
+                        onError={(event) => {
+                          event.currentTarget.style.display = 'none'
+                        }}
+                      />
                     ) : null}
                   </div>
 
+                  <div className="flex-1 min-w-0">
+                    <h3 className="line-clamp-1 font-display text-base italic text-white sm:text-lg">{row.books?.title ?? 'Unknown Book'}</h3>
+                    <p className="truncate text-xs text-muted">{author}</p>
+
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${statusChip(row.status)}`}>
+                        {row.status === 'requested' ? 'Pending' : row.status === 'active' ? 'Borrowed' : 'Overdue'}
+                      </span>
+                      {row.fine_amount && row.fine_amount > 0 ? (
+                        <span className="inline-flex rounded-full bg-danger/10 px-2 py-0.5 text-[10px] font-mono font-bold text-danger border border-danger/20">
+                          ₹{row.fine_amount}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex-1 flex flex-col justify-center sm:border-l sm:border-white/5 sm:pl-6">
                   {row.status !== 'requested' ? (
                     <>
-                      <div className="mt-2 h-[3px] w-full rounded bg-white/10">
-                        <div className={`h-full rounded ${progressColor}`} style={{ width: `${ratio}%` }} />
+                      <div className="mt-1 h-[4px] w-full rounded bg-white/5 overflow-hidden">
+                        <div className={`h-full rounded ${progressColor} transition-all duration-1000`} style={{ width: `${ratio}%` }} />
                       </div>
-                      <div className="mt-1 flex items-center justify-between">
-                        <p className="text-[11px] text-muted">{daysLabel}</p>
+                      <div className="mt-2 flex items-center justify-between gap-4">
+                        <p className="text-[11px] font-medium text-muted">{daysLabel}</p>
                         <CountdownTimer dueDate={row.due_date} />
                       </div>
                     </>
                   ) : (
-                    <p className="mt-1 text-[11px] text-muted">Visit library counter to collect</p>
+                    <div className="flex items-center justify-between">
+                       <p className="text-[11px] text-muted italic">Awaiting pickup at desk</p>
+                       <button
+                          type="button"
+                          onClick={() => handleCancel(row.id)}
+                          disabled={cancelRequest.isPending}
+                          className="flex items-center gap-1.5 rounded-lg border border-border bg-white/4 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-muted transition-all hover:border-danger/30 hover:bg-danger/10 hover:text-danger active:scale-95 disabled:opacity-50"
+                        >
+                          {cancelRequest.isPending ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                          Discard
+                        </button>
+                    </div>
                   )}
-                </div>
-
-                <div className="flex flex-col items-end gap-3 self-start">
-                  <div className="rounded bg-white/7 px-2 py-1 font-mono text-[10px] text-muted">
-                    Copy #{row.copy_id ?? '—'}
-                  </div>
-                  {row.status === 'requested' && (
-                    <button
-                      type="button"
-                      onClick={() => handleCancel(row.id)}
-                      disabled={cancelRequest.isPending}
-                      className="flex items-center gap-1 rounded-md border border-border bg-white/4 px-2 py-1 text-[10px] font-semibold text-muted transition duration-150 hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-50"
-                      title="Cancel request"
-                    >
-                      {cancelRequest.isPending ? <Loader2 size={10} className="animate-spin" /> : <Trash2 size={10} />}
-                      Cancel
-                    </button>
+                  {row.status !== 'requested' && (
+                     <div className="mt-3 flex items-center justify-between border-t border-white/5 pt-3">
+                        <span className="text-[10px] uppercase font-bold text-muted tracking-widest">Asset #{row.copy_id}</span>
+                        <div className="h-1.5 w-1.5 rounded-full bg-ok animate-pulse" />
+                     </div>
                   )}
                 </div>
               </article>
@@ -363,14 +378,16 @@ export default function MyShelfPage() {
 
       {!currentLoading && !currentError && tab === 'history' ? (
         historyRows.length === 0 ? (
-          <p className="text-center text-sm text-muted">No reading history yet</p>
+          <div className="grid place-items-center py-16 text-muted border border-dashed border-white/10 rounded-card bg-surface/30">
+             <p className="text-sm">No reading history yet</p>
+          </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid gap-3">
             {historyRows.map((row, idx) => (
-              <article key={idx} className="rounded-card border border-border bg-surface px-6 py-5 flex items-center justify-between">
+              <article key={idx} className="rounded-card border border-border bg-surface px-5 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h3 className="font-display text-base italic text-white">{row.title ?? 'Unknown Book'}</h3>
-                  <p className="mt-1 text-xs text-muted">
+                  <p className="mt-1 text-[11px] text-muted leading-relaxed">
                     {row.status === 'returned' 
                       ? `Borrowed ${row.borrowed_at ? new Date(row.borrowed_at).toLocaleDateString() : '—'} · Returned ${row.returned_at ? new Date(row.returned_at).toLocaleDateString() : '—'}`
                       : 'Request was cancelled'
@@ -379,12 +396,12 @@ export default function MyShelfPage() {
                 </div>
                 <div className="flex items-center gap-3">
                   {row.fine_amount && row.fine_amount > 0 ? (
-                    <span className="rounded-full bg-danger/10 px-2 py-0.5 text-[10px] font-mono text-danger">
-                      Fine: ₹{row.fine_amount} ({row.fine_status})
+                    <span className="rounded-full bg-danger/10 px-2 py-0.5 text-[10px] font-mono text-danger border border-danger/20">
+                      ₹{row.fine_amount} Paid
                     </span>
                   ) : null}
-                  <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
-                    row.status === 'returned' ? 'bg-ok/12 text-ok' : 'bg-white/8 text-muted'
+                  <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${
+                    row.status === 'returned' ? 'bg-ok/10 text-ok border border-ok/20' : 'bg-white/5 text-muted border border-white/10'
                   }`}>
                     {row.status}
                   </span>
@@ -397,29 +414,31 @@ export default function MyShelfPage() {
 
       {!currentLoading && !currentError && tab === 'waitlist' ? (
         waitlistRows.length === 0 ? (
-          <p className="text-center text-sm text-muted">You're not waiting for any books</p>
+          <div className="grid place-items-center py-16 text-muted border border-dashed border-white/10 rounded-card bg-surface/30">
+            <p className="text-sm">You're not waiting for any books</p>
+          </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid gap-3">
             {waitlistRows.map((row, index) => (
-              <article key={row.id} className="flex items-center justify-between rounded-card border border-border bg-surface px-6 py-5">
+              <article key={row.id} className="flex flex-col gap-4 rounded-card border border-border bg-surface px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h3 className="font-display text-base italic text-white">{row.books?.title ?? 'Unknown Book'}</h3>
-                  <p className="text-xs text-muted">Joined {row.joined_at ? new Date(row.joined_at).toLocaleDateString() : '—'}</p>
+                  <h3 className="font-display text-base italic text-white sm:text-lg">{row.books?.title ?? 'Unknown Book'}</h3>
+                  <p className="text-[11px] text-muted">Joined queue on {row.joined_at ? new Date(row.joined_at).toLocaleDateString() : '—'}</p>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <span className="font-mono text-sm text-waitlist">#{row.position ?? index + 1} in queue</span>
+                <div className="flex items-center justify-between sm:justify-end gap-6">
+                  <div className="text-left sm:text-right">
+                    <p className="font-mono text-lg text-accent font-black italic leading-none">#{row.position ?? index + 1}</p>
+                    <p className="text-[9px] text-muted uppercase tracking-[0.2em] mt-1">Status: Waiting</p>
+                  </div>
                   <button
                     type="button"
-                    onClick={async () => {
-                      await supabase.from('waitlist').delete().eq('id', row.id)
-                      await queryClient.invalidateQueries({ queryKey: ['shelf-waitlist', user?.id] })
-                      await queryClient.invalidateQueries({ queryKey: ['books'] })
-                      await queryClient.invalidateQueries({ queryKey: ['trending'] })
-                    }}
-                    className="rounded border border-border p-1.5 text-muted transition duration-150 hover:border-danger/40 hover:text-danger"
+                    disabled={leaveWaitlist.isPending}
+                    onClick={() => row.book_id && handleLeaveWaitlist(row.book_id)}
+                    className="flex items-center gap-1.5 rounded-lg border border-border bg-white/4 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-muted transition-all hover:border-danger/30 hover:bg-danger/10 hover:text-danger active:scale-95 disabled:opacity-50"
                   >
-                    <X size={14} />
+                    {leaveWaitlist.isPending ? <Loader2 size={12} className="animate-spin" /> : <X size={14} />}
+                    Leave
                   </button>
                 </div>
               </article>

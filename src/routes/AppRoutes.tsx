@@ -7,6 +7,7 @@ import AdminAuditLogPage from '../pages/admin/AdminAuditLogPage'
 import AdminInventoryPage from '../pages/admin/AdminInventoryPage'
 import AdminMembersPage from '../pages/admin/AdminMembersPage'
 import AdminRequestsPage from '../pages/admin/AdminRequestsPage'
+import AdminTransactionsPage from '../pages/admin/AdminTransactionsPage'
 import DiscoverPage from '../pages/DiscoverPage'
 import LandingPage from '../pages/LandingPage'
 import MyShelfPage from '../pages/MyShelfPage'
@@ -95,6 +96,14 @@ export default function AppRoutes() {
           element={
             <RequireAdmin>
               <AdminRequestsPage />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/transactions"
+          element={
+            <RequireAdmin>
+              <AdminTransactionsPage />
             </RequireAdmin>
           }
         />

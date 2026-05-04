@@ -652,6 +652,7 @@ export type Database = {
           searchable_text: string | null
           title: string | null
           total_copies: number | null
+          waitlist_count: number | null
         }
         Relationships: []
       }
@@ -716,8 +717,20 @@ export type Database = {
       }
     }
     Functions: {
+      cancel_request: {
+        Args: { p_borrow_id: number; p_user_id: string }
+        Returns: string
+      }
       confirm_borrow: { Args: { p_borrow_id: number }; Returns: string }
+      leave_waitlist: {
+        Args: { p_book_id: number; p_user_id: string }
+        Returns: string
+      }
       mark_overdue: { Args: never; Returns: number }
+      reject_borrow: {
+        Args: { p_borrow_id: number; p_reason?: string }
+        Returns: string
+      }
       request_borrow: {
         Args: { p_book_id: number; p_user_id: string }
         Returns: string

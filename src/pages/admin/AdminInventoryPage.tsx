@@ -1,4 +1,4 @@
-import { Loader2, Sparkles, X, Edit2, PlusCircle, Upload, Image as ImageIcon } from 'lucide-react'
+import { Loader2, Sparkles, X, Edit2, PlusCircle, Upload, Image as ImageIcon, Search } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Navigate } from 'react-router-dom'
@@ -68,27 +68,13 @@ export default function AdminInventoryPage() {
       const term = search.trim()
       
       if (term) {
-        query = query.or(`title.ilike.%${term}%,isbn.ilike.%${term}%`)
+        query = query.ilike('searchable_text', `%${term}%`)
       }
 
       const { data, error } = await query.limit(term ? 500 : 1000).returns<BookRow[]>()
 
       if (error) throw error
-      
-      const rows = data ?? []
-      if (!term) return rows
-
-      const lowerTerm = term.toLowerCase()
-      return rows.filter((book) => {
-        const searchStr = [
-          book.title,
-          book.isbn,
-          book.format,
-          ...(book.authors ?? []),
-          ...(book.genres ?? []),
-        ].join(' ').toLowerCase()
-        return searchStr.includes(lowerTerm)
-      })
+      return data ?? []
     },
   })
 
@@ -166,9 +152,16 @@ export default function AdminInventoryPage() {
 
     try {
       const response = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${encodeURIComponent(isbn.trim())}&format=json&jscmd=data`)
-      const payload = (await response.json()) as Record<string, any>
+      const payload = (await response.json()) as Record<string, unknown>
       const key = `ISBN:${isbn.trim()}`
-      const data = payload[key]
+      const data = payload[key] as {
+        title?: string
+        authors?: { name: string }[]
+        publishers?: { name: string }[]
+        publish_date?: string
+        notes?: unknown
+        excerpts?: { text: string }[]
+      } | undefined
 
       if (!data) {
         setMessage('ISBN not found. Fill in details manually.')
@@ -212,7 +205,7 @@ export default function AdminInventoryPage() {
     setIsbn(book.isbn ?? '')
     setAuthorNames((book.authors ?? []).join(', '))
     setPublisherName(book.publisher_name ?? '')
-    setFormat(book.format as any ?? 'novel')
+    setFormat((book.format as typeof format) ?? 'novel')
     setPublishedYear(book.published_date ? book.published_date.slice(0, 4) : '')
     setLanguage(book.language ?? 'English')
     setDescription(book.description ?? '')
@@ -371,198 +364,395 @@ export default function AdminInventoryPage() {
   }
 
   return (
-    <main className="min-h-screen bg-void" style={{ padding: '28px 32px' }}>
-      <div className="grid gap-5 lg:grid-cols-[3fr_2fr]">
-        <section>
-          <h1 className="font-display text-[24px] italic text-white">Book Inventory</h1>
-          <p className="mb-3 text-sm text-muted">{books.length} books in library</p>
+    <main className="min-h-screen bg-void px-4 py-6 sm:px-8 sm:py-7 lg:px-10 lg:py-12">
+      <div className="flex flex-col gap-8 lg:grid lg:grid-cols-[3fr_2fr] xl:gap-12">
+        <section className="order-2 lg:order-1">
+          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="font-display text-3xl italic text-white lg:text-4xl">Book Inventory</h1>
+              <p className="mt-1 text-sm text-muted">{books.length} books in library collection</p>
+            </div>
+          </div>
 
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search by title"
-            className="mb-3 h-[38px] w-full rounded-lg border border-border bg-surface px-3 text-sm text-white outline-none"
-          />
+          <div className="relative mb-6 group">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted transition-colors group-focus-within:text-accent" size={16} />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search by title, ISBN, or author..."
+              className="h-12 w-full rounded-2xl border border-white/5 bg-surface pl-11 pr-4 text-sm text-white outline-none ring-accent/20 transition-all focus:border-accent/40 focus:ring-4 shadow-inner"
+            />
+          </div>
 
-          <div className="overflow-hidden rounded-card border border-border bg-surface">
-            <div className="grid grid-cols-[52px_2fr_1fr_1fr_1fr_80px] bg-white/4 px-4 py-2 text-[11px] uppercase tracking-[0.05em] text-muted">
-              <p>Cover</p><p>Title & Author</p><p>Format</p><p>Copies</p><p>Rating</p><p></p>
+          <div className="overflow-hidden rounded-[24px] border border-border bg-surface/50 backdrop-blur-md">
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-white/4 text-[10px] font-bold uppercase tracking-widest text-muted border-b border-border">
+                    <th className="px-6 py-4">Item</th>
+                    <th className="px-6 py-4">Format</th>
+                    <th className="px-6 py-4">Status</th>
+                    <th className="px-6 py-4">Rating</th>
+                    <th className="px-6 py-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {filteredBooks.slice(0, 50).map((book) => (
+                    <tr key={book.id} className="hover:bg-white/2 transition-colors group">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-4">
+                          <div className="relative h-12 w-9 shrink-0 overflow-hidden rounded border border-border bg-white/5">
+                            <div
+                              className="absolute inset-0 grid place-items-center font-display text-[11px] italic text-white"
+                              style={{ background: FALLBACK_GRADIENTS[(book.title?.charCodeAt(0) || 0) % FALLBACK_GRADIENTS.length] }}
+                            >
+                              {book.title?.[0]?.toUpperCase() ?? 'B'}
+                            </div>
+                            {book.cover_url && (
+                              <img
+                                src={book.cover_url}
+                                alt=""
+                                className="relative z-10 h-full w-full object-cover"
+                              />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-bold text-white group-hover:text-accent transition-colors">{book.title}</p>
+                            <p className="truncate text-[11px] text-muted">{book.authors?.[0] ?? 'Unknown Author'}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="inline-flex rounded-full bg-white/8 px-2 py-0.5 text-[10px] font-bold uppercase text-muted">
+                          {book.format}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="font-mono text-xs">
+                          <p className={(book.available_copies ?? 0) > 0 ? 'text-ok' : 'text-danger'}>
+                            {book.available_copies ?? 0}/{book.total_copies ?? 0}
+                          </p>
+                          {(book.waitlist_count ?? 0) > 0 && (
+                            <p className="text-waitlist text-[10px] font-bold">{book.waitlist_count} waiting</p>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                         <div className="flex items-center gap-1 font-mono text-xs text-warn">
+                           <span>★</span>
+                           <span>{(book.avg_rating ?? 0).toFixed(1)}</span>
+                         </div>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleEdit(book)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-accent/10 hover:text-accent transition-colors"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => book.id && deleteBook(book.id, book.title ?? 'Book')}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-danger/10 hover:text-danger transition-colors"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
 
-            {filteredBooks.slice(0, 50).map((book) => (
-              <div key={book.id} className="grid grid-cols-[52px_2fr_1fr_1fr_1fr_80px] items-center border-b border-border/60 px-4 py-3 hover:bg-white/2 transition-colors">
-                <div className="relative h-12 w-8 overflow-hidden rounded border border-border bg-white/8">
-                  <div
-                    className="absolute inset-0 grid place-items-center font-display text-[11px] italic text-white"
-                    style={{ background: FALLBACK_GRADIENTS[(book.title?.charCodeAt(0) || 0) % FALLBACK_GRADIENTS.length] }}
-                  >
-                    {book.title?.[0]?.toUpperCase() ?? 'B'}
+            {/* Mobile Card View */}
+            <div className="md:hidden divide-y divide-border/60">
+              {filteredBooks.slice(0, 50).map((book) => (
+                <div key={book.id} className="p-4 hover:bg-white/2 transition-colors">
+                  <div className="flex gap-4">
+                    <div className="relative h-20 w-14 shrink-0 overflow-hidden rounded-lg border border-border bg-white/5">
+                      <div
+                        className="absolute inset-0 grid place-items-center font-display text-lg italic text-white"
+                        style={{ background: FALLBACK_GRADIENTS[(book.title?.charCodeAt(0) || 0) % FALLBACK_GRADIENTS.length] }}
+                      >
+                        {book.title?.[0]?.toUpperCase() ?? 'B'}
+                      </div>
+                      {book.cover_url && (
+                        <img src={book.cover_url} alt="" className="relative z-10 h-full w-full object-cover" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="line-clamp-2 text-sm font-bold text-white">{book.title}</p>
+                          <p className="mt-0.5 truncate text-xs text-muted">{book.authors?.[0] ?? 'Unknown Author'}</p>
+                        </div>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => handleEdit(book)}
+                            className="h-8 w-8 flex items-center justify-center rounded-lg bg-white/5 text-muted"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button
+                            onClick={() => book.id && deleteBook(book.id, book.title ?? 'Book')}
+                            className="h-8 w-8 flex items-center justify-center rounded-lg bg-danger/10 text-danger"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center gap-3">
+                        <span className="rounded-full bg-white/8 px-2 py-0.5 text-[9px] font-bold uppercase text-muted">
+                          {book.format}
+                        </span>
+                        <div className="flex items-center gap-1.5 font-mono text-[11px]">
+                          <span className={(book.available_copies ?? 0) > 0 ? 'text-ok' : 'text-danger'}>
+                            {book.available_copies ?? 0}/{book.total_copies ?? 0}
+                          </span>
+                          {(book.waitlist_count ?? 0) > 0 && (
+                            <span className="text-waitlist font-bold">• {book.waitlist_count} waiting</span>
+                          )}
+                        </div>
+                        <span className="font-mono text-[11px] text-warn">★ {(book.avg_rating ?? 0).toFixed(1)}</span>
+                      </div>
+                    </div>
                   </div>
-                  {book.cover_url ? (
-                    <img
-                      src={book.cover_url}
-                      alt={book.title ?? ''}
-                      className="relative z-10 h-full w-full object-cover"
-                      onError={(event) => {
-                        event.currentTarget.style.display = 'none'
-                      }}
-                    />
-                  ) : null}
                 </div>
-                <div>
-                  <p className="truncate text-sm text-white font-medium">{book.title}</p>
-                  <p className="text-[11px] text-muted">{book.authors?.[0] ?? 'Unknown Author'}</p>
-                </div>
-                <span className="w-fit rounded-full bg-white/8 px-2 py-0.5 text-[10px] text-muted">{book.format}</span>
-                <p className={`font-mono text-xs ${(book.available_copies ?? 0) > 0 ? 'text-ok' : 'text-danger'}`}>
-                  {book.available_copies ?? 0}/{book.total_copies ?? 0}
-                </p>
-                <p className="font-mono text-xs text-warn">★ {(book.avg_rating ?? 0).toFixed(1)}</p>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => handleEdit(book)}
-                    className="grid h-8 w-8 place-items-center rounded-md text-muted hover:bg-accent/10 hover:text-accent"
-                    title="Edit Book"
-                  >
-                    <Edit2 size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => book.id && deleteBook(book.id, book.title ?? 'Book')}
-                    className="grid h-8 w-8 place-items-center rounded-md text-muted hover:bg-danger/10 hover:text-danger"
-                    title="Delete Book"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
+
+          {filteredBooks.length === 0 && (
+            <div className="py-20 text-center">
+              <p className="text-muted">No books matching your search</p>
+            </div>
+          )}
         </section>
 
-        <section className="sticky top-20 h-fit rounded-card border border-border bg-surface px-6 py-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-semibold text-white flex items-center gap-2">
-              {editingId ? <Edit2 size={16} className="text-accent" /> : <PlusCircle size={16} className="text-ok" />}
-              {editingId ? 'Edit Book' : 'Add New Book'}
-            </h2>
-            {editingId && (
-              <button 
-                onClick={resetForm}
-                className="text-[11px] uppercase tracking-wider text-muted hover:text-white underline"
-              >
-                Cancel Edit
-              </button>
-            )}
-          </div>
-
-          <div className="mb-3 flex gap-2">
-            <input value={isbn} onChange={(event) => setIsbn(event.target.value)} placeholder="Enter ISBN" className="h-10 flex-1 rounded-lg border border-border bg-surface px-3 text-sm text-white outline-none focus:border-accent/50" />
-            <button type="button" onClick={() => void autofill()} disabled={fetchingIsbn || !!editingId} className="inline-flex h-10 items-center gap-1 rounded-lg border border-accent/30 bg-accent/15 px-3 text-sm font-semibold text-accent disabled:opacity-50">
-              {fetchingIsbn ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />} {fetchingIsbn ? 'Fetching...' : 'Autofill'}
-            </button>
-          </div>
-
-          <div className="grid gap-2">
-            <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Title*" className="h-10 rounded-lg border border-border bg-surface px-3 text-sm text-white outline-none focus:border-accent/50" />
-            <input value={authorNames} onChange={(event) => setAuthorNames(event.target.value)} placeholder="Author(s), comma separated" className="h-10 rounded-lg border border-border bg-surface px-3 text-sm text-white outline-none focus:border-accent/50" />
-
-            <div className="grid grid-cols-2 gap-2">
-              <select value={genreId} onChange={(event) => setGenreId(event.target.value ? Number(event.target.value) : '')} className="h-10 rounded-lg border border-border bg-overlay px-3 text-sm text-white outline-none focus:border-accent/50">
-                <option value="">Genre</option>
-                {genres.map((genre) => (
-                  <option key={genre.id} value={genre.id}>{genre.name}</option>
-                ))}
-              </select>
-              <div className="relative">
-                <input
-                  list="publisher-list"
-                  value={publisherName}
-                  onChange={(event) => setPublisherName(event.target.value)}
-                  placeholder="Publisher"
-                  className="h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-white outline-none focus:border-accent/50"
-                />
-                <datalist id="publisher-list">
-                  {publishers.map((pub) => (
-                    <option key={pub.id} value={pub.name} />
-                  ))}
-                </datalist>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <select value={format} onChange={(event) => setFormat(event.target.value as typeof format)} className="h-10 rounded-lg border border-border bg-overlay px-3 text-sm text-white outline-none focus:border-accent/50">
-                <option value="novel">Novel</option>
-                <option value="manga">Manga</option>
-                <option value="magazine">Magazine</option>
-                <option value="textbook">Textbook</option>
-                <option value="digital">Digital</option>
-              </select>
-              <input type="number" min={1800} max={2026} value={publishedYear} onChange={(event) => setPublishedYear(event.target.value)} placeholder="Published year" className="h-10 rounded-lg border border-border bg-surface px-3 text-sm text-white outline-none focus:border-accent/50" />
-            </div>
-
-            <input value={language} onChange={(event) => setLanguage(event.target.value)} placeholder="Language" className="h-10 rounded-lg border border-border bg-surface px-3 text-sm text-white outline-none focus:border-accent/50" />
-
-            <textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={4} placeholder="Description" className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-white outline-none focus:border-accent/50" />
-            
-            <div className="space-y-2">
-              <label className="text-[11px] uppercase tracking-wider text-muted">Book Cover</label>
-              <div className="flex gap-3">
-                <div className="relative h-24 w-16 overflow-hidden rounded border border-border bg-white/4">
-                  {coverUrl ? (
-                    <img src={coverUrl} alt="Preview" className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="grid h-full place-items-center text-muted">
-                      <ImageIcon size={20} />
-                    </div>
-                  )}
-                  {uploading && (
-                    <div className="absolute inset-0 grid place-items-center bg-black/60">
-                      <Loader2 size={16} className="animate-spin text-accent" />
-                    </div>
-                  )}
+        <section className="order-1 lg:order-2">
+          <div className="sticky top-[80px]">
+            <div className="rounded-[28px] border border-border bg-surface px-6 py-7 shadow-2xl shadow-black/40">
+              <div className="mb-6 flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                    {editingId ? <Edit2 size={18} className="text-accent" /> : <PlusCircle size={18} className="text-ok" />}
+                    {editingId ? 'Modify Entry' : 'Registry Entry'}
+                  </h2>
+                  <p className="text-xs text-muted mt-0.5">
+                    {editingId ? `Editing ID: #${editingId}` : 'Add a new volume to the library'}
+                  </p>
                 </div>
-                <div className="flex flex-1 flex-col gap-2">
-                  <input
-                    value={coverUrl}
-                    onChange={(event) => setCoverUrl(event.target.value)}
-                    placeholder="Cover URL (paste or upload)"
-                    className="h-10 rounded-lg border border-border bg-surface px-3 text-sm text-white outline-none focus:border-accent/50"
-                  />
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileUpload}
-                    accept="image/*"
-                    className="hidden"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading}
-                    className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-border bg-white/6 text-xs font-medium text-white transition-colors hover:bg-white/10"
+                {editingId && (
+                  <button 
+                    onClick={resetForm}
+                    className="h-8 rounded-lg bg-white/5 px-3 text-[10px] font-bold uppercase tracking-wider text-muted hover:bg-white/10 hover:text-white transition-all"
                   >
-                    <Upload size={14} />
-                    {uploading ? 'Uploading...' : 'Upload Image'}
+                    Cancel
+                  </button>
+                )}
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input 
+                      value={isbn} 
+                      onChange={(event) => setIsbn(event.target.value)} 
+                      placeholder="Standard ISBN" 
+                      className="h-11 w-full rounded-xl border border-border bg-base px-4 text-sm text-white outline-none ring-accent/20 transition-all focus:border-accent/40 focus:ring-4" 
+                    />
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={() => void autofill()} 
+                    disabled={fetchingIsbn || !!editingId} 
+                    className="flex h-11 items-center justify-center gap-2 rounded-xl border border-accent/20 bg-accent/5 px-4 text-xs font-bold text-accent transition-all hover:bg-accent/10 disabled:opacity-50"
+                  >
+                    {fetchingIsbn ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                    <span className="hidden sm:inline">Autofill</span>
                   </button>
                 </div>
+
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-muted px-1">Vital Details</label>
+                    <input 
+                      value={title} 
+                      onChange={(event) => setTitle(event.target.value)} 
+                      placeholder="Book Title*" 
+                      className="h-11 w-full rounded-xl border border-border bg-base px-4 text-sm text-white outline-none focus:border-accent/40" 
+                    />
+                    <input 
+                      value={authorNames} 
+                      onChange={(event) => setAuthorNames(event.target.value)} 
+                      placeholder="Primary Author(s)" 
+                      className="h-11 w-full rounded-xl border border-border bg-base px-4 text-sm text-white outline-none focus:border-accent/40" 
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-muted px-1">Taxonomy</label>
+                      <select 
+                        value={genreId} 
+                        onChange={(event) => setGenreId(event.target.value ? Number(event.target.value) : '')} 
+                        className="h-11 w-full rounded-xl border border-border bg-base px-3 text-sm text-white outline-none focus:border-accent/40 appearance-none cursor-pointer"
+                      >
+                        <option value="">Select Genre</option>
+                        {genres.map((genre) => (
+                          <option key={genre.id} value={genre.id}>{genre.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-muted px-1">Origin</label>
+                      <input
+                        list="publisher-list"
+                        value={publisherName}
+                        onChange={(event) => setPublisherName(event.target.value)}
+                        placeholder="Publisher"
+                        className="h-11 w-full rounded-xl border border-border bg-base px-4 text-sm text-white outline-none focus:border-accent/40"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-muted px-1">Medium</label>
+                      <select 
+                        value={format} 
+                        onChange={(event) => setFormat(event.target.value as typeof format)} 
+                        className="h-11 w-full rounded-xl border border-border bg-base px-3 text-sm text-white outline-none focus:border-accent/40 appearance-none cursor-pointer"
+                      >
+                        <option value="novel">Novel</option>
+                        <option value="manga">Manga</option>
+                        <option value="magazine">Magazine</option>
+                        <option value="textbook">Textbook</option>
+                        <option value="digital">Digital</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-muted px-1">Year</label>
+                      <input 
+                        type="number" 
+                        min={1800} 
+                        max={2026} 
+                        value={publishedYear} 
+                        onChange={(event) => setPublishedYear(event.target.value)} 
+                        placeholder="YYYY" 
+                        className="h-11 w-full rounded-xl border border-border bg-base px-4 text-sm text-white outline-none focus:border-accent/40" 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-muted px-1">Narrative Context</label>
+                    <textarea 
+                      value={description} 
+                      onChange={(event) => setDescription(event.target.value)} 
+                      rows={4} 
+                      placeholder="Book summary and details..." 
+                      className="w-full rounded-xl border border-border bg-base px-4 py-3 text-sm text-white outline-none focus:border-accent/40 resize-none" 
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-muted px-1">Visual Identity</label>
+                    <div className="flex gap-4">
+                      <div className="relative h-28 w-20 shrink-0 overflow-hidden rounded-xl border border-border bg-base shadow-inner">
+                        {coverUrl ? (
+                          <img src={coverUrl} alt="Preview" className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="grid h-full place-items-center text-muted/30">
+                            <ImageIcon size={24} />
+                          </div>
+                        )}
+                        {uploading && (
+                          <div className="absolute inset-0 grid place-items-center bg-black/60 backdrop-blur-sm">
+                            <Loader2 size={18} className="animate-spin text-accent" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-1 flex-col gap-2">
+                        <input
+                          value={coverUrl}
+                          onChange={(event) => setCoverUrl(event.target.value)}
+                          placeholder="Image URL"
+                          className="h-11 rounded-xl border border-border bg-base px-4 text-sm text-white outline-none focus:border-accent/40"
+                        />
+                        <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="image/*" className="hidden" />
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={uploading}
+                          className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/5 bg-white/5 text-xs font-bold text-white transition-all hover:bg-white/10"
+                        >
+                          <Upload size={14} />
+                          {uploading ? 'Processing...' : 'Upload Cover'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {!editingId && format !== 'digital' && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-muted px-1">Initial Stock</label>
+                      <input 
+                        type="number" 
+                        min={1} 
+                        max={50} 
+                        value={copies} 
+                        onChange={(event) => setCopies(Number(event.target.value) || 1)} 
+                        placeholder="Number of physical copies" 
+                        className="h-11 w-full rounded-xl border border-border bg-base px-4 text-sm text-white outline-none focus:border-accent/40" 
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
+
+              <button 
+                type="button" 
+                onClick={() => void submit()} 
+                disabled={saving} 
+                className={`mt-8 h-12 w-full rounded-xl text-xs font-black uppercase tracking-widest text-white transition-all active:scale-[0.98] shadow-lg ${
+                  editingId ? 'bg-accent shadow-accent/20' : 'bg-ok shadow-ok/20'
+                }`}
+              >
+                {saving ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <Loader2 size={16} className="animate-spin" />
+                    <span>Synchronizing...</span>
+                  </div>
+                ) : (
+                  editingId ? 'Apply Modifications' : 'Commit to Registry'
+                )}
+              </button>
+
+              {message && (
+                <div className="mt-4 rounded-xl border border-ok/20 bg-ok/5 px-4 py-3 text-[11px] font-bold text-ok animate-in fade-in slide-in-from-top-2">
+                  {message}
+                </div>
+              )}
+              {error && (
+                <div className="mt-4 rounded-xl border border-danger/20 bg-danger/5 px-4 py-3 text-[11px] font-bold text-danger animate-in fade-in slide-in-from-top-2">
+                  {error}
+                </div>
+              )}
             </div>
-
-            {!editingId && format !== 'digital' ? (
-              <input type="number" min={1} max={50} value={copies} onChange={(event) => setCopies(Number(event.target.value) || 1)} placeholder="Physical copies" className="h-10 rounded-lg border border-border bg-surface px-3 text-sm text-white outline-none focus:border-accent/50" />
-            ) : null}
           </div>
-
-          <button type="button" onClick={() => void submit()} disabled={saving} className={`mt-3 h-12 w-full rounded-lg text-sm font-semibold text-white transition-colors ${editingId ? 'bg-accent hover:bg-accent/90' : 'bg-ok hover:bg-ok/90'}`}>
-            {saving ? 'Processing...' : editingId ? 'Update Book' : 'Add Book to Library'}
-          </button>
-
-          {message ? <p className="mt-2 text-xs text-ok">{message}</p> : null}
-          {error ? <p className="mt-2 text-xs text-danger">{error}</p> : null}
         </section>
       </div>
+
+      <datalist id="publisher-list">
+        {publishers.map((pub) => (
+          <option key={pub.id} value={pub.name} />
+        ))}
+      </datalist>
     </main>
   )
 }

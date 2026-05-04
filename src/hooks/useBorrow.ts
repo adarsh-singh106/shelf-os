@@ -168,19 +168,57 @@ export function useReturnBook() {
 
 export function useCancelRequest() {
   const qc = useQueryClient()
-  return useMutation<void, Error, { borrowId: number; userId: string }>({
-    mutationFn: async ({ borrowId }) => {
-      const { error } = await supabase
-        .from('borrow_history')
-        .delete()
-        .eq('id', borrowId)
-        .eq('status', 'requested') // Safety check
-
+  return useMutation<string, Error, { borrowId: number; userId: string }>({
+    mutationFn: async ({ borrowId, userId }) => {
+      const { data, error } = await supabase.rpc('cancel_request', {
+        p_borrow_id: borrowId,
+        p_user_id: userId,
+      })
       if (error) throw error
+      return data
     },
     onSuccess: (_, variables) => {
       qc.invalidateQueries({ queryKey: ['shelf-active', variables.userId] })
       qc.invalidateQueries({ queryKey: ['pending_requests'] })
+      qc.invalidateQueries({ queryKey: ['books'] })
+      qc.invalidateQueries({ queryKey: ['inventory-books'] })
+    },
+  })
+}
+
+export function useRejectBorrow() {
+  const qc = useQueryClient()
+  return useMutation<string, Error, { borrowId: number; reason?: string }>({
+    mutationFn: async ({ borrowId, reason }) => {
+      const { data, error } = await supabase.rpc('reject_borrow', {
+        p_borrow_id: borrowId,
+        p_reason: reason,
+      })
+      if (error) throw error
+      return data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pending_requests'] })
+      qc.invalidateQueries({ queryKey: ['books'] })
+      qc.invalidateQueries({ queryKey: ['inventory-books'] })
+      qc.invalidateQueries({ queryKey: ['shelf-active'] })
+    },
+  })
+}
+
+export function useLeaveWaitlist() {
+  const qc = useQueryClient()
+  return useMutation<string, Error, { bookId: number; userId: string }>({
+    mutationFn: async ({ bookId, userId }) => {
+      const { data, error } = await supabase.rpc('leave_waitlist', {
+        p_book_id: bookId,
+        p_user_id: userId,
+      })
+      if (error) throw error
+      return data
+    },
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ['shelf-waitlist', variables.userId] })
       qc.invalidateQueries({ queryKey: ['books'] })
       qc.invalidateQueries({ queryKey: ['inventory-books'] })
     },

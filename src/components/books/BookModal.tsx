@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useRequestBorrow } from '../../hooks/useBorrow'
-import type { TableInsert, TableRow } from '../../types/db'
+import type { TableRow } from '../../types/db'
 
 type ModalBook = {
   id: number
@@ -21,6 +21,7 @@ type ModalBook = {
   reviewCount: number
   availableCopies: number
   totalCopies: number
+  waitlistCount?: number
 }
 
 interface BookModalProps {
@@ -52,7 +53,6 @@ export default function BookModal({ book, isOpen, onClose, userId }: BookModalPr
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [coverReady, setCoverReady] = useState(true)
-  const [joiningWaitlist, setJoiningWaitlist] = useState(false)
 
   const requestBorrowMutation = useRequestBorrow()
 
@@ -134,43 +134,19 @@ export default function BookModal({ book, isOpen, onClose, userId }: BookModalPr
       const normalized = String(response).toUpperCase()
       if (normalized.includes('WAITLIST')) {
         setStatusMessage('Added to waitlist successfully.')
-        await queryClient.invalidateQueries({ queryKey: ['landing-stats'] })
-        await queryClient.invalidateQueries({ queryKey: ['inventory-books'] })
-        return
+      } else {
+        setStatusMessage('Visit the library counter to collect your book. Librarian will confirm within the day.')
       }
 
-      setStatusMessage('Visit the library counter to collect your book. Librarian will confirm within the day.')
       await queryClient.invalidateQueries({ queryKey: ['landing-stats'] })
       await queryClient.invalidateQueries({ queryKey: ['inventory-books'] })
-    } catch (err) {
-      setActionError((err as Error).message)
-    }
-  }
-
-  const joinWaitlist = async () => {
-    if (!userId || !book) return
-
-    setActionError(null)
-    setStatusMessage(null)
-    setJoiningWaitlist(true)
-
-    try {
-      const waitlistInsert = { user_id: userId, book_id: book.id } satisfies TableInsert<'waitlist'>
-      const { error } = await supabase.from('waitlist').insert(waitlistInsert)
-
-      if (error) throw error
-      
-      setStatusMessage('On waitlist ✓')
       await queryClient.invalidateQueries({ queryKey: ['book-waitlist', book.id, userId] })
+      await queryClient.invalidateQueries({ queryKey: ['shelf-active', userId] })
       await queryClient.invalidateQueries({ queryKey: ['shelf-waitlist', userId] })
       await queryClient.invalidateQueries({ queryKey: ['books'] })
       await queryClient.invalidateQueries({ queryKey: ['trending'] })
-      await queryClient.invalidateQueries({ queryKey: ['landing-stats'] })
-      await queryClient.invalidateQueries({ queryKey: ['inventory-books'] })
     } catch (err) {
       setActionError((err as Error).message)
-    } finally {
-      setJoiningWaitlist(false)
     }
   }
 
@@ -241,6 +217,11 @@ export default function BookModal({ book, isOpen, onClose, userId }: BookModalPr
                   </div>
                   <p className="mt-1 text-[11px] text-muted">{book.availableCopies} of {book.totalCopies} available</p>
                 </>
+              )}
+              {book.waitlistCount !== undefined && book.waitlistCount > 0 && (
+                <p className="mt-1 text-[11px] text-waitlist font-bold italic">
+                  {book.waitlistCount} {book.waitlistCount === 1 ? 'person' : 'people'} already waiting
+                </p>
               )}
             </div>
           </aside>
@@ -316,13 +297,18 @@ export default function BookModal({ book, isOpen, onClose, userId }: BookModalPr
                 >
                   {requestBorrowMutation.isPending ? 'Processing...' : statusMessage?.includes('Visit the library counter') ? 'Requested ✓' : 'Request Borrow'}
                 </button>
-              ) : isOnWaitlist || statusMessage === 'On waitlist ✓' ? (
+              ) : isOnWaitlist || statusMessage?.includes('waitlist') ? (
                 <button type="button" disabled className="h-12 w-full rounded-lg border border-waitlist bg-waitlist/20 text-[15px] font-semibold text-waitlist">
                   On Waitlist ✓
                 </button>
               ) : (
-                <button type="button" onClick={() => void joinWaitlist()} disabled={joiningWaitlist} className="h-12 w-full rounded-lg border border-waitlist text-[15px] font-semibold text-waitlist">
-                  {joiningWaitlist ? 'Joining...' : 'Join Waitlist'}
+                <button 
+                  type="button" 
+                  onClick={() => void requestBorrow()} 
+                  disabled={requestBorrowMutation.isPending} 
+                  className="h-12 w-full rounded-lg border border-waitlist text-[15px] font-semibold text-waitlist hover:bg-waitlist/10 transition-colors"
+                >
+                  {requestBorrowMutation.isPending ? 'Joining...' : 'Join Waitlist'}
                 </button>
               )}
 

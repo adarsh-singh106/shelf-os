@@ -93,7 +93,8 @@ export default function DiscoverPage() {
       const { data, error } = await supabase
         .from('book_details')
         .select('*')
-        .limit(40)
+        .order('id', { ascending: false })
+        .limit(100)
         .returns<BookRow[]>()
       if (error) throw error
 
@@ -111,6 +112,7 @@ export default function DiscoverPage() {
         .from('book_details')
         .select('*')
         .eq('format', 'textbook')
+        .order('id', { ascending: false })
         .limit(20)
         .returns<BookRow[]>()
       if (error) throw error
@@ -192,24 +194,24 @@ export default function DiscoverPage() {
   }, [queryClient])
 
   return (
-    <main className="min-h-screen bg-void px-8 pb-[60px] pt-7">
-      <header className="mb-8 flex items-center justify-between">
+    <main className="min-h-screen bg-void px-4 pb-20 pt-7 sm:px-8">
+      <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-display text-[32px] italic text-white">Discover</h1>
+          <h1 className="font-display text-[28px] italic text-white sm:text-[32px]">Discover</h1>
           <p className="mt-1 text-sm text-muted">Explore the latest and greatest in our collection</p>
         </div>
         <button
           type="button"
           onClick={() => void handleRefresh()}
           disabled={refreshing}
-          className={`flex h-10 w-10 items-center justify-center rounded-full border border-border bg-white/4 text-muted transition-all hover:bg-white/8 hover:text-white ${refreshing ? 'cursor-not-allowed opacity-50' : ''}`}
+          className={`flex h-10 w-10 items-center justify-center rounded-full border border-border bg-white/4 text-muted transition-all hover:bg-white/8 hover:text-white sm:self-center ${refreshing ? 'cursor-not-allowed opacity-50' : ''}`}
           title="Sync with Library"
         >
           <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
         </button>
       </header>
 
-      <section className="relative mb-8 h-[180px] overflow-hidden rounded-card md:h-[220px]">
+      <section className="relative mb-10 h-[220px] overflow-hidden rounded-card sm:h-[240px] md:h-[280px]">
         <div className="absolute inset-0 bg-gradient-to-br from-[#0d1829] to-[#1a0d29]" />
         {heroBook?.cover_url ? (
           <img
@@ -219,31 +221,33 @@ export default function DiscoverPage() {
             style={{ filter: 'blur(40px) saturate(0.5) brightness(0.25)' }}
           />
         ) : null}
-        <div className="absolute inset-0 bg-gradient-to-r from-black/45 via-black/20 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/30 to-transparent" />
 
-        <div className="relative z-10 h-full p-7">
+        <div className="relative z-10 flex h-full flex-col justify-end p-5 sm:p-7 md:justify-center">
           <p className="mb-2 font-mono text-[10px] tracking-[0.1em] text-accent">✦ Featured this week</p>
-          <h1 className="max-w-[60%] font-display text-2xl italic text-white md:text-[28px]">{heroBook?.title ?? 'Discover the best books this week'}</h1>
-          <p className="mt-1 text-[13px] text-muted">{heroBook?.authors?.[0] ?? 'Popular picks from your library'}</p>
+          <h1 className="max-w-full font-display text-xl italic text-white sm:text-2xl md:max-w-[60%] md:text-[32px] lg:text-[40px] leading-tight">
+            {heroBook?.title ?? 'Discover the best books this week'}
+          </h1>
+          <p className="mt-1 line-clamp-1 text-xs text-muted sm:text-sm">{heroBook?.authors?.[0] ?? 'Popular picks from your library'}</p>
 
-          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted">
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted">
             <span className="font-mono text-warn">★ {heroBook?.avg_rating?.toFixed(1) ?? '4.5'}</span>
             <span className="rounded-full bg-white/10 px-2 py-0.5">{heroBook?.format ?? 'novel'}</span>
-            <span className="text-ok">{heroBook?.available_copies ?? 0} available</span>
+            <span className="text-ok font-medium">{heroBook?.available_copies ?? 0} available</span>
           </div>
 
-          <div className="mt-3 flex gap-2">
+          <div className="mt-4 flex gap-2">
             <button
               type="button"
-              className="h-9 rounded-lg bg-accent px-4 text-sm font-semibold text-white"
+              className="h-9 rounded-lg bg-accent px-4 text-xs font-bold uppercase tracking-wider text-white shadow-lg shadow-accent/20 transition-transform active:scale-95 sm:text-sm"
               onClick={() => setSelectedBook(heroBook ?? null)}
               disabled={!heroBook}
             >
-              Request Borrow
+              Borrow
             </button>
             <button
               type="button"
-              className="h-9 rounded-lg border border-border bg-white/6 px-4 text-sm text-white/80"
+              className="h-9 rounded-lg border border-border bg-white/6 px-4 text-xs font-medium text-white/80 transition-colors hover:bg-white/10 sm:text-sm"
               onClick={() => setSelectedBook(heroBook ?? null)}
               disabled={!heroBook}
             >
@@ -253,37 +257,39 @@ export default function DiscoverPage() {
         </div>
       </section>
 
-      <ShelfRow title="Newly Added" books={toCardRows(newBooks)} loading={loadingNew} onBookClick={(book) => openBookByCard(book, newBooks)} />
-      <ShelfRow title="Academic & Textbooks" books={toCardRows(textbooks)} loading={loadingTextbooks} onBookClick={(book) => openBookByCard(book, textbooks)} />
+      <div className="space-y-4">
+        <ShelfRow title="Newly Added" books={toCardRows(newBooks)} loading={loadingNew} onBookClick={(book) => openBookByCard(book, newBooks)} />
+        <ShelfRow title="Academic & Textbooks" books={toCardRows(textbooks)} loading={loadingTextbooks} onBookClick={(book) => openBookByCard(book, textbooks)} />
 
-      <ShelfRow
-        title="Trending This Week"
-        books={toCardRows(trending as BookRow[])}
-        loading={loadingTrending}
-        onBookClick={(book) => openBookByCard(book, trending as BookRow[])}
-      />
+        <ShelfRow
+          title="Trending This Week"
+          books={toCardRows(trending as BookRow[])}
+          loading={loadingTrending}
+          onBookClick={(book) => openBookByCard(book, trending as BookRow[])}
+        />
 
-      <ShelfRow title="Fiction & Romance" books={toCardRows(fictionRomance)} loading={loadingFictionRomance} onBookClick={(book) => openBookByCard(book, fictionRomance)} />
+        <ShelfRow title="Fiction & Romance" books={toCardRows(fictionRomance)} loading={loadingFictionRomance} onBookClick={(book) => openBookByCard(book, fictionRomance)} />
 
-      {preferredGenres.length === 0 ? (
-        <div className="mb-9 rounded-card border border-accent/20 bg-accent/8 p-4">
-          <p className="text-sm text-white/80">Tell us your taste to personalize recommendations.</p>
-          <button
-            type="button"
-            onClick={() => navigate('/space')}
-            className="mt-2 text-sm text-accent transition-colors duration-150 hover:text-white"
-          >
-            Tell us your taste →
-          </button>
-        </div>
-      ) : null}
+        {preferredGenres.length === 0 ? (
+          <div className="mb-9 rounded-card border border-accent/20 bg-accent/8 p-5 text-center sm:text-left">
+            <p className="text-sm text-white/90">Tell us your taste to personalize recommendations.</p>
+            <button
+              type="button"
+              onClick={() => navigate('/space')}
+              className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-accent transition-colors duration-150 hover:text-white"
+            >
+              Tell us your taste →
+            </button>
+          </div>
+        ) : null}
 
-      <ShelfRow
-        title="Picked For You"
-        books={toCardRows((preferredGenres.length > 0 ? forYou : trending) as BookRow[])}
-        loading={preferredGenres.length > 0 ? loadingForYou : loadingTrending}
-        onBookClick={(book) => openBookByCard(book, (preferredGenres.length > 0 ? forYou : trending) as BookRow[])}
-      />
+        <ShelfRow
+          title="Picked For You"
+          books={toCardRows((preferredGenres.length > 0 ? forYou : trending) as BookRow[])}
+          loading={preferredGenres.length > 0 ? loadingForYou : loadingTrending}
+          onBookClick={(book) => openBookByCard(book, (preferredGenres.length > 0 ? forYou : trending) as BookRow[])}
+        />
+      </div>
 
       <BookModal
         isOpen={Boolean(selectedBook)}
@@ -306,6 +312,7 @@ export default function DiscoverPage() {
                 reviewCount: selectedBook.review_count ?? 0,
                 availableCopies: selectedBook.available_copies ?? 0,
                 totalCopies: selectedBook.total_copies ?? 0,
+                waitlistCount: selectedBook.waitlist_count ?? 0,
               }
             : null
         }

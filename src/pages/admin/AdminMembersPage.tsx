@@ -1,4 +1,4 @@
-import { History, Search, User, X, Check } from 'lucide-react'
+import { History, Search, User, X, Check, Clock, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Navigate } from 'react-router-dom'
@@ -7,7 +7,14 @@ import { useAuth } from '../../hooks/useAuth'
 import type { TableRow, ViewRow } from '../../types/db'
 
 type Profile = TableRow<'users'> & { tier?: { name: string, max_borrows: number } }
-type ReadingHistory = ViewRow<'user_reading_history'> & { book_id?: number, fine_amount?: number, fine_status?: string }
+type ReadingHistory = ViewRow<'user_reading_history'> & { 
+  id?: number, 
+  book_id?: number, 
+  fine_amount?: number, 
+  fine_status?: string,
+  title?: string,
+  cover_url?: string | null
+}
 type WaitlistEntry = TableRow<'waitlist'> & { books: { title: string, cover_url: string | null } | null }
 
 export default function AdminMembersPage() {
@@ -32,7 +39,7 @@ export default function AdminMembersPage() {
 
       const { data, error } = await query
       if (error) throw error
-      return (data as any) ?? []
+      return (data as Profile[]) ?? []
     },
   })
 
@@ -48,18 +55,22 @@ export default function AdminMembersPage() {
       
       if (error) throw error
       
-      return (data ?? []).map(row => ({
-        user_id: row.user_id,
-        book_id: row.book_id,
-        borrowed_at: row.borrowed_at,
-        returned_at: row.returned_at,
-        due_date: row.due_date,
-        status: row.status,
-        fine_amount: row.fine_amount,
-        fine_status: row.fine_status,
-        title: (row.books as any)?.title,
-        cover_url: (row.books as any)?.cover_url
-      })) as ReadingHistory[]
+      return (data ?? []).map(row => {
+        const book = row.books as { title: string, cover_url: string | null } | null
+        return {
+          user_id: row.user_id,
+          book_id: row.book_id,
+          borrowed_at: row.borrowed_at,
+          returned_at: row.returned_at,
+          due_date: row.due_date,
+          status: row.status,
+          fine_amount: row.fine_amount,
+          fine_status: row.fine_status,
+          title: book?.title,
+          cover_url: book?.cover_url,
+          id: row.id
+        }
+      }) as ReadingHistory[]
     },
   })
 
@@ -118,48 +129,54 @@ export default function AdminMembersPage() {
   }
 
   return (
-    <main className="min-h-screen bg-void" style={{ padding: '28px 32px' }}>
-      <header className="mb-8">
-        <h1 className="font-display text-[32px] italic text-white">Library Members</h1>
-        <p className="mt-1 text-sm text-muted">Search students, view their borrow history and current status.</p>
+    <main className="min-h-screen bg-void px-4 py-6 sm:px-8 sm:py-7 lg:px-10 lg:py-12">
+      <header className="mb-10">
+        <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-accent mb-2">
+          <User size={12} />
+          Directory Management
+        </div>
+        <h1 className="font-display text-4xl italic text-white lg:text-5xl">Library Members</h1>
+        <p className="mt-2 max-w-2xl text-sm text-muted">
+          Search students, audit their borrow history, and manage active obligations within the library ecosystem.
+        </p>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_1.5fr]">
-        <section className="space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={16} />
+      <div className="flex flex-col gap-8 lg:grid lg:grid-cols-[380px_1fr] xl:gap-12">
+        <section className="space-y-6">
+          <div className="relative group">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted transition-colors group-focus-within:text-accent" size={16} />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by username or email..."
-              className="h-11 w-full rounded-xl border border-border bg-surface pl-10 pr-4 text-sm text-white outline-none ring-accent/20 focus:ring-2"
+              placeholder="Filter by name or email..."
+              className="h-12 w-full rounded-2xl border border-white/5 bg-surface pl-11 pr-4 text-sm text-white outline-none ring-accent/20 transition-all focus:border-accent/40 focus:ring-4 shadow-inner"
             />
           </div>
 
-          <div className="overflow-hidden rounded-card border border-border bg-surface">
-            <div className="bg-white/4 px-4 py-2 text-[11px] uppercase tracking-wider text-muted">
-              Matching Members
+          <div className="overflow-hidden rounded-[28px] border border-border bg-surface/50 backdrop-blur-md">
+            <div className="bg-white/4 px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-muted border-b border-border">
+              Directory Listing
             </div>
-            <div className="divide-y divide-border/40">
+            <div className="divide-y divide-border/40 max-h-[600px] overflow-y-auto scrollbar-hide">
               {loadingMembers ? (
-                <div className="p-8 text-center text-sm text-muted">Loading members...</div>
+                <div className="p-12 text-center text-sm text-muted italic">Querying records...</div>
               ) : members.length === 0 ? (
-                <div className="p-8 text-center text-sm text-muted">No members found.</div>
+                <div className="p-12 text-center text-sm text-muted italic">No matching records found.</div>
               ) : (
                 members.map((member) => (
                   <button
                     key={member.id}
                     onClick={() => setSelectedUser(member)}
-                    className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/4 ${
+                    className={`flex w-full items-center gap-4 px-6 py-4 text-left transition-all hover:bg-white/4 ${
                       selectedUser?.id === member.id ? 'bg-accent/10' : ''
                     }`}
                   >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/20 text-accent font-semibold">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent/20 text-accent font-black text-sm border border-accent/20 shadow-lg shadow-accent/5">
                       {member.username?.[0]?.toUpperCase() ?? 'U'}
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-white">{member.username}</p>
-                      <p className="truncate text-xs text-muted">{member.email}</p>
+                      <p className="truncate text-sm font-bold text-white group-hover:text-accent transition-colors">{member.username}</p>
+                      <p className="truncate text-[11px] text-muted">{member.email}</p>
                     </div>
                   </button>
                 ))
@@ -168,158 +185,164 @@ export default function AdminMembersPage() {
           </div>
         </section>
 
-        <section className="space-y-6">
+        <section className="space-y-8">
           {selectedUser ? (
-            <>
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
               {/* User Info Card */}
-              <div className="rounded-card border border-border bg-surface overflow-hidden">
-                <div className="flex items-center justify-between border-b border-border bg-white/4 px-6 py-4">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent text-lg font-semibold text-white">
+              <div className="rounded-[32px] border border-border bg-surface overflow-hidden shadow-2xl shadow-black/40">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border bg-white/4 px-6 py-6 sm:px-8">
+                  <div className="flex items-center gap-5">
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-accent text-xl font-black text-white shadow-xl shadow-accent/20">
                       {selectedUser.username?.[0]?.toUpperCase() ?? 'U'}
                     </div>
                     <div>
-                      <h2 className="text-lg font-semibold text-white">{selectedUser.username}</h2>
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm text-muted">{selectedUser.email}</p>
-                        <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] uppercase font-bold text-accent">
-                          {selectedUser.tier?.name ?? 'Student'}
+                      <h2 className="text-xl font-display italic text-white leading-tight">{selectedUser.username}</h2>
+                      <div className="flex flex-wrap items-center gap-3 mt-1">
+                        <p className="text-xs text-muted">{selectedUser.email}</p>
+                        <span className="rounded-lg bg-accent/10 border border-accent/20 px-2 py-0.5 text-[9px] uppercase font-black tracking-widest text-accent">
+                          {selectedUser.tier?.name ?? 'Standard'}
                         </span>
                       </div>
                     </div>
                   </div>
                   <button 
                     onClick={() => setSelectedUser(null)}
-                    className="rounded-lg p-2 text-muted hover:bg-white/6 hover:text-white"
+                    className="self-end sm:self-center rounded-xl p-2.5 text-muted hover:bg-white/6 hover:text-white transition-colors"
                   >
                     <X size={20} />
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 divide-x divide-border border-b border-border">
-                  <div className="p-4 text-center">
-                    <p className="text-[10px] uppercase tracking-wider text-muted">Max Borrows</p>
-                    <p className="mt-1 text-xl font-display italic text-white">{selectedUser.tier?.max_borrows ?? 5}</p>
+                <div className="grid grid-cols-2 divide-x divide-border border-b border-border bg-base/40">
+                  <div className="p-6 text-center">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted">Allowance</p>
+                    <p className="mt-2 text-2xl font-display italic text-white">{selectedUser.tier?.max_borrows ?? 5}</p>
+                    <p className="text-[9px] text-muted uppercase mt-0.5">Maximum Volumes</p>
                   </div>
-                  <div className="p-4 text-center">
-                    <p className="text-[10px] uppercase tracking-wider text-muted">Member Since</p>
-                    <p className="mt-1 text-sm text-white">
-                      {selectedUser.created_at ? new Date(selectedUser.created_at).toLocaleDateString() : '—'}
+                  <div className="p-6 text-center">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted">Enrollment</p>
+                    <p className="mt-2 text-sm font-bold text-white">
+                      {selectedUser.created_at ? new Date(selectedUser.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
                     </p>
+                    <p className="text-[9px] text-muted uppercase mt-0.5">Registration Date</p>
                   </div>
                 </div>
-              </div>
 
-              {/* Waitlist Section */}
-              {waitlist.length > 0 && (
-                <div className="rounded-card border border-warn/20 bg-warn/5 p-6">
-                  <div className="mb-4 flex items-center gap-2 text-warn">
-                    <History size={18} />
-                    <h3 className="font-semibold">Current Waitlist ({waitlist.length})</h3>
-                  </div>
-                  <div className="space-y-2">
-                    {waitlist.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between rounded-lg border border-warn/10 bg-black/20 p-3">
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-7 overflow-hidden rounded border border-border bg-white/5">
-                            {item.books?.cover_url ? (
-                              <img src={item.books.cover_url} alt="" className="h-full w-full object-cover" />
-                            ) : (
-                              <div className="grid h-full place-items-center text-[10px] italic text-muted">?</div>
-                            )}
-                          </div>
-                          <p className="text-sm text-white">{item.books?.title}</p>
-                        </div>
-                        <p className="text-[11px] text-muted">Joined {new Date(item.joined_at!).toLocaleDateString()}</p>
+                <div className="p-6 sm:p-8">
+                  {/* Waitlist Section */}
+                  {waitlist.length > 0 && (
+                    <div className="mb-8 rounded-2xl border border-warn/20 bg-warn/5 p-5">
+                      <div className="mb-4 flex items-center gap-2 text-warn font-black text-xs uppercase tracking-widest">
+                        <Clock size={14} className="animate-pulse" />
+                        Active Waitlist Obligations ({waitlist.length})
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {waitlist.map((item) => (
+                          <div key={item.id} className="flex items-center gap-3 rounded-xl border border-warn/10 bg-black/20 p-3">
+                            <div className="h-10 w-7 shrink-0 overflow-hidden rounded border border-border bg-white/5 shadow-lg">
+                              {item.books?.cover_url ? (
+                                <img src={item.books.cover_url} alt="" className="h-full w-full object-cover" />
+                              ) : (
+                                <div className="grid h-full place-items-center text-[10px] italic text-muted">?</div>
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="truncate text-[13px] font-bold text-white leading-none">{item.books?.title}</p>
+                              <p className="text-[10px] text-muted mt-1 uppercase tracking-tighter">Joined {new Date(item.joined_at!).toLocaleDateString()}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
-              {/* Borrowing History Card */}
-              <div className="rounded-card border border-border bg-surface overflow-hidden">
-                <div className="border-b border-border bg-white/4 px-6 py-4">
-                  <div className="flex items-center gap-2 text-white">
-                    <History size={18} className="text-accent" />
-                    <h3 className="font-semibold">Borrowing History</h3>
+                  {/* Borrowing History */}
+                  <div className="flex items-center gap-2 text-white font-bold text-sm uppercase tracking-widest mb-6 px-1">
+                    <History size={16} className="text-accent" />
+                    Operational History
                   </div>
-                </div>
 
-                <div className="p-6">
                   {loadingHistory ? (
-                    <div className="py-12 text-center text-sm text-muted">Loading history...</div>
+                    <div className="py-20 text-center text-sm text-muted italic">Retrieving archive data...</div>
                   ) : history.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-border py-12 text-center">
-                      <p className="text-sm text-muted">No borrowing history found for this member.</p>
+                    <div className="rounded-[24px] border border-dashed border-border py-20 text-center">
+                      <p className="text-sm text-muted">No operational history found for this member.</p>
                     </div>
                   ) : (
-                    <div className="space-y-3">
+                    <div className="grid gap-4 sm:grid-cols-1 xl:grid-cols-2">
                       {history.map((item, idx) => (
-                        <div key={idx} className="flex gap-4 rounded-xl border border-border/60 bg-white/2 p-4">
-                          <div className="h-16 w-11 shrink-0 overflow-hidden rounded border border-border bg-white/5">
+                        <div key={idx} className="flex gap-4 rounded-2xl border border-border/60 bg-white/2 p-4 transition-all hover:border-white/10 hover:bg-white/4 group">
+                          <div className="h-20 w-14 shrink-0 overflow-hidden rounded-lg border border-border bg-white/5 shadow-xl transition-transform group-hover:scale-105">
                             {item.cover_url ? (
                               <img src={item.cover_url} alt="" className="h-full w-full object-cover" />
                             ) : (
-                              <div className="grid h-full place-items-center bg-accent/10 font-display text-xs italic text-accent">
+                              <div className="grid h-full place-items-center bg-accent/10 font-display text-lg italic text-accent">
                                 {item.title?.[0]}
                               </div>
                             )}
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <p className="truncate text-sm font-medium text-white">{item.title}</p>
-                                {item.fine_amount && item.fine_amount > 0 && (
-                                  <div className="mt-1 flex items-center gap-2">
-                                    <span className="text-[10px] font-mono text-danger">Fine: ₹{item.fine_amount}</span>
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-bold text-white group-hover:text-accent transition-colors">{item.title}</p>
+                                {item.fine_amount && item.fine_amount > 0 ? (
+                                  <div className="mt-1.5 flex items-center gap-2">
+                                    <span className={`inline-flex items-center rounded-lg px-2 py-0.5 text-[9px] font-black uppercase tracking-widest ${
+                                      item.fine_status === 'paid' ? 'bg-ok/10 text-ok border border-ok/20' : 'bg-danger/10 text-danger border border-danger/20'
+                                    }`}>
+                                      ₹{item.fine_amount} {item.fine_status === 'paid' ? 'Paid ✓' : 'UNSETTLED !!'}
+                                    </span>
                                     {item.fine_status === 'unpaid' && (
                                       <button 
-                                        onClick={() => (item as any).id && handlePayFine((item as any).id, selectedUser.id)}
-                                        className="text-[9px] uppercase font-bold text-accent hover:underline"
+                                        onClick={() => item.id && handlePayFine(item.id, selectedUser.id)}
+                                        className="text-[9px] uppercase font-black tracking-widest text-accent hover:text-white transition-colors"
                                       >
-                                        Mark Paid
+                                        [ Clear Fine ]
                                       </button>
                                     )}
-                                    {item.fine_status === 'paid' && (
-                                      <span className="text-[9px] uppercase font-bold text-ok">Paid</span>
-                                    )}
                                   </div>
+                                ) : (
+                                  <span className="mt-1.5 inline-flex rounded-lg bg-white/5 border border-white/5 px-2 py-0.5 text-[8px] font-bold uppercase tracking-widest text-muted">
+                                    No Penalties
+                                  </span>
                                 )}
                               </div>
-                              <div className="flex flex-col items-end gap-2">
-                                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] uppercase font-bold ${
-                                  item.status === 'active' ? 'bg-ok/20 text-ok' :
-                                  item.status === 'overdue' ? 'bg-danger/20 text-danger' :
-                                  'bg-white/10 text-muted'
-                                }`}>
-                                  {item.status}
-                                </span>
-                                {(item.status === 'active' || item.status === 'overdue') && (
-                                  <button
-                                    onClick={() => item.book_id && item.user_id && handleReturn(item.book_id, item.user_id)}
-                                    disabled={busyId === `${item.book_id}-${item.user_id}`}
-                                    className="flex items-center gap-1 rounded-full bg-ok/10 px-2 py-0.5 text-[10px] font-bold text-ok transition-colors hover:bg-ok/20 disabled:opacity-50"
-                                  >
-                                    <Check size={10} /> Mark Returned
-                                  </button>
-                                )}
-                              </div>
+                              <span className={`shrink-0 rounded-lg px-2 py-1 text-[9px] font-black uppercase tracking-widest ${
+                                item.status === 'active' ? 'bg-ok/10 text-ok border border-ok/20' :
+                                item.status === 'overdue' ? 'bg-danger/10 text-danger border border-danger/20 animate-pulse' :
+                                'bg-white/5 text-muted border border-white/5'
+                              }`}>
+                                {item.status}
+                              </span>
                             </div>
-                            <div className="mt-2 grid grid-cols-2 gap-4 text-[11px] text-muted">
-                              <div>
-                                <p className="uppercase tracking-wider">Borrowed</p>
-                                <p className="text-white">{item.borrowed_at ? new Date(item.borrowed_at).toLocaleDateString() : '—'}</p>
+
+                            <div className="mt-4 flex items-end justify-between">
+                              <div className="grid grid-cols-2 gap-4 text-[10px]">
+                                <div>
+                                  <p className="font-bold uppercase tracking-tighter text-muted">Released</p>
+                                  <p className="font-mono text-white/90">{item.borrowed_at ? new Date(item.borrowed_at).toLocaleDateString() : '—'}</p>
+                                </div>
+                                <div>
+                                  <p className="font-bold uppercase tracking-tighter text-muted">{item.status === 'returned' ? 'Secured' : 'Obligation'}</p>
+                                  <p className="font-mono text-white/90">
+                                    {item.status === 'returned' 
+                                      ? (item.returned_at ? new Date(item.returned_at).toLocaleDateString() : '—')
+                                      : (item.due_date ? new Date(item.due_date).toLocaleDateString() : '—')
+                                    }
+                                  </p>
+                                </div>
                               </div>
-                              <div>
-                                <p className="uppercase tracking-wider">{item.status === 'returned' ? 'Returned' : 'Due Date'}</p>
-                                <p className="text-white">
-                                  {item.status === 'returned' 
-                                    ? (item.returned_at ? new Date(item.returned_at).toLocaleDateString() : '—')
-                                    : (item.due_date ? new Date(item.due_date).toLocaleDateString() : '—')
-                                  }
-                                </p>
-                              </div>
+                              
+                              {(item.status === 'active' || item.status === 'overdue') && (
+                                <button
+                                  onClick={() => item.book_id && item.user_id && handleReturn(item.book_id, item.user_id)}
+                                  disabled={busyId === `${item.book_id}-${item.user_id}`}
+                                  className="flex h-8 items-center gap-1.5 rounded-xl bg-ok/10 px-3 text-[9px] font-black uppercase tracking-widest text-ok transition-all hover:bg-ok/20 active:scale-95 disabled:opacity-50"
+                                >
+                                  {busyId === `${item.book_id}-${item.user_id}` ? <Loader2 size={10} className="animate-spin" /> : <Check size={12} />}
+                                  Return
+                                </button>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -328,15 +351,15 @@ export default function AdminMembersPage() {
                   )}
                 </div>
               </div>
-            </>
+            </div>
           ) : (
-            <div className="flex h-[400px] flex-col items-center justify-center rounded-card border border-dashed border-border bg-surface/50 text-center p-8">
-              <div className="mb-4 rounded-full bg-white/5 p-4 text-muted">
-                <User size={32} />
+            <div className="flex h-[500px] flex-col items-center justify-center rounded-[40px] border border-dashed border-white/10 bg-surface/30 text-center p-12">
+              <div className="mb-6 rounded-full bg-white/5 p-8 text-muted/30">
+                <User size={64} strokeWidth={1} />
               </div>
-              <h3 className="text-lg font-medium text-white">No Member Selected</h3>
-              <p className="mt-1 max-w-[260px] text-sm text-muted">
-                Select a member from the list on the left to view their borrowing history and active books.
+              <h3 className="text-2xl font-display italic text-white">Focus Required</h3>
+              <p className="mt-3 max-w-[320px] text-sm leading-relaxed text-muted">
+                Select a member from the directory to initialize their comprehensive borrowing dossier.
               </p>
             </div>
           )}
