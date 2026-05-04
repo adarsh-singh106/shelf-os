@@ -1,19 +1,20 @@
 @import 'tailwindcss';
 
 @theme {
-  --color-void: #05070a;
-  --color-base: #0b0e13;
-  --color-surface: #111620;
-  --color-raised: #181e2c;
-  --color-overlay: #1f2738;
-  --color-border: rgba(255, 255, 255, 0.08);
+  --color-void: var(--void);
+  --color-base: var(--base);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-overlay: var(--overlay);
+  --color-border: var(--border);
   --color-accent: #4f8ef7;
   --color-ok: #3dd68c;
   --color-warn: #f5a623;
   --color-danger: #f05252;
   --color-waitlist: #c084fc;
-  --color-muted: rgba(255, 255, 255, 0.45);
-  --color-ghost: rgba(255, 255, 255, 0.18);
+  --color-muted: var(--muted);
+  --color-ghost: var(--ghost);
+  --color-foreground: var(--foreground);
 
   --font-display: 'Fraunces', 'Georgia', 'serif';
   --font-ui: 'DM Sans', 'system-ui', 'sans-serif';
@@ -23,13 +24,82 @@
   --radius-pill: 999px;
 }
 
+:root {
+  --void: #05070a;
+  --base: #0b0e13;
+  --surface: #111620;
+  --raised: #181e2c;
+  --overlay: #1f2738;
+  --border: rgba(255, 255, 255, 0.08);
+  --muted: rgba(255, 255, 255, 0.45);
+  --ghost: rgba(255, 255, 255, 0.18);
+  --foreground: #ffffff;
+}
+
+:root.light {
+  --void: #f8fafc;
+  --base: #ffffff;
+  --surface: #f1f5f9;
+  --raised: #e2e8f0;
+  --overlay: #ffffff;
+  --border: rgba(0, 0, 0, 0.08);
+  --muted: rgba(15, 23, 42, 0.6);
+  --ghost: rgba(15, 23, 42, 0.3);
+  --foreground: #0f172a;
+}
+
 @layer base {
   html {
-    @apply bg-void text-white font-ui;
+    @apply bg-void text-foreground font-ui transition-colors duration-300;
   }
 
   body {
-    @apply bg-void text-white font-ui;
+    @apply bg-void text-foreground font-ui;
+  }
+
+  /* Global text color overrides for light mode to avoid changing 100+ files */
+  :root.light [class*="text-white"],
+  :root.light [class*="text-foreground"] {
+    color: var(--foreground) !important;
+  }
+
+  :root.light [class*="text-muted"] {
+    color: var(--muted) !important;
+  }
+
+  :root.light [class*="text-ghost"] {
+    color: var(--ghost) !important;
+  }
+
+  /* Global background overrides for light mode */
+  :root.light [class*="bg-white/"],
+  :root.light [class*="hover:bg-white/"]:hover {
+    background-color: rgba(15, 23, 42, 0.08) !important;
+  }
+
+  :root.light .bg-void { background-color: var(--void) !important; }
+  :root.light .bg-base { background-color: var(--base) !important; }
+  :root.light .bg-surface { background-color: var(--surface) !important; }
+  :root.light .bg-raised { background-color: var(--raised) !important; }
+
+  /* Protect text color on primary action backgrounds (Buttons, Badges) */
+  :root.light .bg-accent [class*="text-white"],
+  :root.light .bg-danger [class*="text-white"],
+  :root.light .bg-ok [class*="text-white"],
+  :root.light .bg-waitlist [class*="text-white"],
+  :root.light .bg-accent p,
+  :root.light .bg-accent span,
+  :root.light .bg-danger p,
+  :root.light .bg-danger span,
+  :root.light button.bg-accent,
+  :root.light button.bg-danger,
+  :root.light .bg-accent [class*="text-foreground"],
+  :root.light .bg-danger [class*="text-foreground"] {
+    color: #ffffff !important;
+  }
+
+  :root.light .shadow-accent\/20 {
+    --tw-shadow-color: rgba(79, 142, 247, 0.2) !important;
   }
 
   button,

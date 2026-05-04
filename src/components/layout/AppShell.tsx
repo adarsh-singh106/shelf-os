@@ -1,7 +1,8 @@
-import { Bell, Search } from 'lucide-react'
+import { Sun, Moon, Search } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
+import { useTheme } from '../../providers/ThemeProvider'
 import Sidebar from './Sidebar'
 import CommandPalette from '../shared/CommandPalette'
 
@@ -14,6 +15,7 @@ interface AppShellProps {
 export default function AppShell({ isAdmin, user, onSearchOpen }: AppShellProps) {
   const navigate = useNavigate()
   const { signOut, profile } = useAuth()
+  const { theme, toggleTheme } = useTheme()
   const [expanded, setExpanded] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
@@ -46,7 +48,7 @@ export default function AppShell({ isAdmin, user, onSearchOpen }: AppShellProps)
     .slice(0, 2)
 
   return (
-    <div className="min-h-screen bg-void text-white">
+    <div className="min-h-screen bg-void text-foreground">
       <Sidebar
         isAdmin={isAdmin}
         expanded={expanded}
@@ -80,11 +82,11 @@ export default function AppShell({ isAdmin, user, onSearchOpen }: AppShellProps)
           <div className="relative flex items-center gap-2 sm:gap-4">
             <button
               type="button"
-              className="hidden p-2 text-muted transition-colors duration-150 hover:text-white sm:block"
-              aria-label="Open shelf activity"
-              onClick={() => navigate('/shelf')}
+              className="p-2 text-muted transition-colors duration-150 hover:text-accent"
+              aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+              onClick={toggleTheme}
             >
-              <Bell size={20} />
+              {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
             </button>
             <span className="h-5 w-px bg-border hidden sm:block" />
 
@@ -97,13 +99,13 @@ export default function AppShell({ isAdmin, user, onSearchOpen }: AppShellProps)
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent text-[11px] font-black text-white shadow-lg shadow-accent/20 md:h-8 md:w-8">
                 {initials || 'U'}
               </div>
-              <span className="hidden max-w-[120px] truncate text-sm font-bold text-white/90 lg:block">{displayUser.username}</span>
+              <span className="hidden max-w-[120px] truncate text-sm font-bold text-foreground/90 lg:block">{displayUser.username}</span>
             </button>
 
             {menuOpen ? (
               <div className="absolute right-0 top-11 w-44 rounded-xl border border-border bg-raised p-1.5 shadow-2xl shadow-black/60 animate-in fade-in zoom-in-95 duration-100">
                 <div className="mb-1 border-b border-border px-3 py-2 lg:hidden">
-                   <p className="truncate text-xs font-bold text-white">{displayUser.username}</p>
+                   <p className="truncate text-xs font-bold text-foreground">{displayUser.username}</p>
                    <p className="truncate text-[10px] text-muted">{displayUser.email}</p>
                 </div>
                 <button
@@ -112,7 +114,7 @@ export default function AppShell({ isAdmin, user, onSearchOpen }: AppShellProps)
                     setMenuOpen(false)
                     navigate('/space')
                   }}
-                  className="w-full rounded-lg px-3 py-2.5 text-left text-sm text-muted transition-colors duration-150 hover:bg-white/8 hover:text-white"
+                  className="w-full rounded-lg px-3 py-2.5 text-left text-sm text-muted transition-colors duration-150 hover:bg-white/8 hover:text-foreground"
                 >
                   My Space
                 </button>
